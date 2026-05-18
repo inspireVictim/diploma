@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NEO-SYNC | Admin</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 32px;
+            background: #08090d;
+            color: #f4f7fb;
+            font-family: Inter, "Segoe UI", Arial, sans-serif;
+        }
+
+        h1 { margin: 0 0 24px; font-size: 32px; }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            background: #111218;
+            border: 1px solid rgba(255, 255, 255, 0.12);
+        }
+
+        th, td {
+            padding: 14px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+            text-align: left;
+            vertical-align: middle;
+        }
+
+        th { color: #00f2ff; font-weight: 700; }
+        .empty { color: #9aa6b2; padding: 24px 0; }
+
+        .status {
+            display: inline-block;
+            min-width: 92px;
+            padding: 5px 9px;
+            border-radius: 999px;
+            border: 1px solid rgba(0, 242, 255, 0.35);
+            color: #00f2ff;
+            text-align: center;
+            font-size: 13px;
+        }
+
+        button {
+            cursor: pointer;
+            color: #fff;
+            border: 1px solid #ff2e88;
+            background: transparent;
+            border-radius: 6px;
+            padding: 8px 12px;
+        }
+
+        button:hover { background: #ff2e88; }
+    </style>
+</head>
+<body>
+    <h1>Заявки на обслуживание техники</h1>
+    <table>
+        <thead>
+            <tr>
+                <th>ID</th>
+                <th>Клиент</th>
+                <th>Устройство</th>
+                <th>Услуга</th>
+                <th>Дата</th>
+                <th>Статус</th>
+                <th>Действие</th>
+            </tr>
+        </thead>
+        <tbody id="bookingsTable"></tbody>
+    </table>
+
+    <script>
+        const adminHeaders = {'X-Admin-Token': 'neo-sync-admin'};
+
+        function formatDate(value) {
+            return new Intl.DateTimeFormat('ru-RU', {
+                year: 'numeric',
+                month: '2-digit',
+                day: '2-digit',
+                hour: '2-digit',
+                minute: '2-digit'
+            }).format(new Date(value));
+        }
+
+        async function loadBookings() {
+            const [bookingsResponse, servicesResponse] = await Promise.all([
+                fetch('/admin/bookings', {headers: adminHeaders}),
+                fetch('/api/services')
+            ]);
+
+            const bookings = await bookingsResponse.json();
+            const services = await servicesResponse.json();
+            const serviceById = Object.fromEntries(
+                services.map(service => [service.id, service.title])
+            );
+            const table = document.getElementById('bookingsTable');
+
+            if (!bookings.length) {
+                table.innerHTML = '<tr><td colspan="7" class="empty">Заявок пока нет</td></tr>';
+                return;
+            }
+
+            table.innerHTML = bookings.map(booking => `
+                <tr>
+                    <td>${booking.id}</td>
+                    <td>${booking.client_name}</td>
+                    <td>${booking.device}</td>
+                    <td>${serviceById[booking.service_id] ?? `Услуга #${booking.service_id}`}</td>
+                    <td>${formatDate(booking.service_date)}</td>
+                    <td><span class="status">${booking.status}</span></td>
+                    <td><button onclick="deleteBooking(${booking.id})">Удалить</button></td>
+                </tr>
+            `).join('');
+        }
+
+        async function deleteBooking(id) {
+            if (!confirm('Удалить заявку?')) return;
+            const response = await fetch(`/admin/bookings/${id}`, {
+                method: 'DELETE',
+                headers: adminHeaders
+            });
+            if (response.status === 404) alert('Заявка не найдена');
+            loadBookings();
+        }
+
+        loadBookings();
+    </script>
+</body>
+</html>
